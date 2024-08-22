@@ -6,6 +6,6 @@ A simple Restful API to authenticate old users and registrate new ones
 2. run <code>node server.js</code>
 3. call endpoint
 
-## Endpoints
+## Endpoints 🏁
 ### GET
 - /auth/{uuid}/{username}/{password}
