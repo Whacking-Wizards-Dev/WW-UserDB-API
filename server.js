@@ -49,18 +49,6 @@ async function uploadFile() {
     }
 }
 
-// uploadFile();
-
-async function deleteFile(fileId) {
-    try {
-        const response = await drive.files.delete({
-            fileId: fileId,
-        });
-    } catch (error) {
-        console.log(error.message);
-    }
-}
-
 async function getUserFromFile(fileName) {
     try {
         // Suche die Datei auf Google Drive
@@ -136,6 +124,7 @@ app.get('/auth/:uuid/:username/:password', async(req, res) => {
     res.status(200).json({ authToken: authToken, userData: publicUser });
 });
 
+
 app.get('/auth/:authToken', async(req, res) => {
     // Entgegennehmen der Daten
     const { authToken } = req.params;
@@ -157,6 +146,95 @@ app.get('/auth/:authToken', async(req, res) => {
 
     res.status(200).json({ userData: publicUser });
 });
+
+app.delete('/user/:uuid/:username/:password', async(req, res) => {
+    // Entgegennehmen der Daten
+    const { uuid, username, password } = req.params;
+
+    // Überprüfen, ob alle erforderlichen Daten vorhanden sind
+    if (!uuid || !username || !password) {
+        return res.status(400).json({ error: 'UUID, username und password sind erforderlich.' });
+    }
+
+    const user = await getUserFromFile(uuid + ".json");
+
+    if (!user) {
+        return res.status(400).json({ error: 'UUID ist nicht gültig.' });
+    }
+
+    // Überprüfen, ob die Daten korrekt sind
+    if (user.username !== username || user.password !== password) {
+        return res.status(400).json({ error: 'Username oder Passwort sind falsch.' });
+    }
+
+    deleteFile(await getFileId(uuid));
+
+    //delete token
+    try {
+        // Suche die Datei auf Google Drive
+        const response = await drive.files.list({
+            q: `name='AuthTokens.json' and '1iBaR0z6LeNa6nV3tVy_FfZlNQkpYjWro' in parents and trashed=false`,
+            fields: 'files(id, name)',
+            pageSize: 1, // Limitierung auf nur 1 Ergebnis
+        });
+
+        const files = response.data.files;
+
+        if (files.length) {
+            const file = files[0];
+            const data = await parseFile(file);
+
+            //delete old token
+            for (const key in data) {
+                if (data[key] === uuid) {
+                    delete data[key];
+                }
+            }
+
+            updateFile(file.id, JSON.stringify(data));
+        }
+    } catch (error) {
+        console.error('Error downloading file:', error);
+        return false;
+    }
+
+    res.status(200).json({});
+});
+
+async function getFileId(uuid) {
+    const fileName = uuid + ".json";
+    try {
+        // Suche die Datei auf Google Drive
+        const response = await drive.files.list({
+            q: `name='${fileName}' and '${ROOT_FOLDER}' in parents and trashed=false`,
+            fields: 'files(id, name)',
+            pageSize: 1, // Limitierung auf nur 1 Ergebnis
+        });
+
+        const files = response.data.files;
+
+        if (files.length) {
+            const file = files[0];
+
+            return file.id;
+        }
+    } catch (error) {
+        console.error('Error searching or downloading file:', error);
+        return false;
+    }
+}
+
+async function deleteFile(fileId) {
+    try {
+        await drive.files.delete({
+            fileId: fileId,
+            supportsAllDrives: true // Falls die Datei in einem geteilten Laufwerk liegt
+        });
+    } catch (error) {
+        console.error(`Fehler beim Löschen der Datei mit der ID ${fileId}:`, error.message);
+    }
+}
+
 
 app.get('/user/:uuid', async(req, res) => {
     // Entgegennehmen der Daten
