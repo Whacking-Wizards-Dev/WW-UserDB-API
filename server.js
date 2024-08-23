@@ -84,21 +84,16 @@ async function searchFileInFolder(fileName) {
                 alt: 'media'
             }, { responseType: 'text' });
 
-            const fileContent = fileResponse.data;
+            const user = JSON.parse(fileResponse.data);
 
-            // Hier kannst du den Inhalt verarbeiten, z.B. splitten
-            const data = fileContent.split(',');
-
-            return data;
-        } else {
-            console.log('No file found.');
-            return false;
+            return user;
         }
     } catch (error) {
-        console.error('Error searching or deleting file:', error);
+        console.error('Error searching or downloading file:', error);
         return false;
     }
 }
+
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -120,14 +115,14 @@ app.get('/auth/:uuid/:username/:password', async(req, res) => {
         return res.status(400).json({ error: 'UUID, username und password sind erforderlich.' });
     }
 
-    const userData = await searchFileInFolder(uuid + ".txt");
+    const user = await searchFileInFolder(uuid + ".json");
 
-    if (!userData) {
+    if (!user) {
         return res.status(400).json({ error: 'UUID ist nicht gültig.', success: false });
     }
 
     // Überprüfen, ob die Daten korrekt sind
-    if (userData[0] !== username || userData[1] !== password) {
+    if (user.username !== username || user.password !== password) {
         return res.status(400).json({ error: 'Username oder Passwort sind falsch.', success: false });
     }
 
