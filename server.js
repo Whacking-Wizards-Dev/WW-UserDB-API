@@ -1,6 +1,4 @@
 const { google } = require('googleapis');
-const path = require('path');
-const fs = require('fs');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
 
@@ -24,30 +22,6 @@ const drive = google.drive({
     version: 'v3',
     auth: oauth2Client,
 });
-
-/* 
-filepath which needs to be uploaded
-Note: Assumes example.jpg file is in root directory, 
-though this can be any filePath
-*/
-const filePath = path.join(__dirname, 'example.jpg');
-
-async function uploadFile() {
-    try {
-        const response = await drive.files.create({
-            requestBody: {
-                name: 'example.jpg', //This can be name of your choice
-                mimeType: 'image/jpg',
-            },
-            media: {
-                mimeType: 'image/jpg',
-                body: fs.createReadStream(filePath),
-            },
-        });
-    } catch (error) {
-        console.log(error.message);
-    }
-}
 
 async function getUserFromFile(fileName) {
     try {
