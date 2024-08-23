@@ -15,6 +15,9 @@ A simple Restful API to authenticate old users and registrate new ones
 ### POST
 - /user/{email}/{username}/{password}
 
+### DELETE
+- /user/{uuid}/{username}/{password}
+
 ## Technologies 👾
 - JavaScript
 - NodeJS
