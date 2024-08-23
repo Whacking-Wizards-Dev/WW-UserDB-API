@@ -44,8 +44,6 @@ async function uploadFile() {
                 body: fs.createReadStream(filePath),
             },
         });
-
-        console.log(response.data);
     } catch (error) {
         console.log(error.message);
     }
@@ -58,7 +56,6 @@ async function deleteFile(fileId) {
         const response = await drive.files.delete({
             fileId: fileId,
         });
-        console.log(response.data, response.status);
     } catch (error) {
         console.log(error.message);
     }
@@ -77,7 +74,6 @@ async function getUserFromFile(fileName) {
 
         if (files.length) {
             const file = files[0];
-            console.log(`Found file: ${file.name} (${file.id})`);
 
             return parseFile(file);
         }
@@ -101,6 +97,7 @@ async function parseFile(file) {
 
 const express = require('express');
 const bodyParser = require('body-parser');
+const { create } = require('domain');
 const app = express();
 
 app.use(bodyParser.json());
@@ -161,6 +158,122 @@ app.get('/auth/:authToken', async(req, res) => {
     res.status(200).json({ userData: publicUser });
 });
 
+app.post('/user/:email/:username/:password', async(req, res) => {
+    // Entgegennehmen der Daten
+    const { email, username, password } = req.params;
+
+    // Überprüfen, ob alle erforderlichen Daten vorhanden sind
+    if (!email || !username || !password) {
+        return res.status(400).json({ error: 'Email, Username & Password sind erforderlich.' });
+    }
+
+    if (await emailAlreadyExists(email)) {
+        return res.status(400).json({ error: 'Email wurde bereits verwendet.' });
+    }
+
+    const uuid = await createUser(email, username, password);
+
+    const publicUser = getPublicUser(await getUserFromFile(uuid + ".json"), uuid);
+
+    const authToken = generateToken();
+
+    saveAuthToken(authToken, uuid);
+
+    res.status(200).json({ authToken: authToken, userData: publicUser });
+});
+
+async function createUser(email, username, password) {
+    const user = {
+        email: email,
+        username: username,
+        password: password
+    };
+
+    const uuid = await nextUuid();
+
+    try {
+        const fileMetadata = {
+            'name': `${uuid}.json`, // Name der Datei
+            'parents': [process.env.ROOT_FOLDER], // Der Ordner, in dem die Datei erstellt wird
+            'mimeType': 'application/json' // MIME-Typ der Datei
+        };
+
+        const media = {
+            mimeType: 'application/json', // Der MIME-Typ der Datei
+            body: JSON.stringify(user) // Der Inhalt der Datei
+        };
+
+        const response = await drive.files.create({
+            resource: fileMetadata,
+            media: media,
+            fields: 'id, name', // Felder, die zurückgegeben werden sollen
+            supportsAllDrives: true // Falls du auf geteilte Laufwerke zugreifst
+        });
+    } catch (error) {
+        console.error('Fehler beim Erstellen der Datei:', error);
+    }
+
+    return uuid;
+}
+
+const uuidLength = 16;
+
+async function nextUuid() {
+    // Suche die Datei auf Google Drive
+    const response = await drive.files.list({
+        q: `name='AuthTokens.json' and '1iBaR0z6LeNa6nV3tVy_FfZlNQkpYjWro' in parents and trashed=false`,
+        fields: 'files(id, name)',
+        pageSize: 1, // Limitierung auf nur 1 Ergebnis
+    });
+
+    const files = response.data.files;
+
+    if (files.length) {
+        const file = files[0];
+        const data = await parseFile(file);
+
+        const uuid = data.nextUuid.toString().padStart(uuidLength, '0');
+
+        data.nextUuid += 1;
+        updateFile(file.id, JSON.stringify(data));
+
+        return uuid;
+    }
+}
+
+async function emailAlreadyExists(email) {
+    try {
+        let pageToken = null;
+        do {
+            // Listen Sie die Dateien auf
+            const response = await drive.files.list({
+                q: `'${ROOT_FOLDER}' in parents and trashed=false`,
+                pageSize: 1000, // Maximale Anzahl von Dateien pro Seite
+                fields: 'nextPageToken, files(id, name)', // Die Felder, die zurückgegeben werden sollen
+                pageToken: pageToken, // Token für die nächste Seite
+            });
+
+            const files = response.data.files;
+            pageToken = response.data.nextPageToken;
+
+            if (files.length) {
+                files.forEach(async(file) => {
+                    const data = await parseFile(file);
+                    if (data.email === email) {
+                        return true;
+                    }
+                });
+            } else {
+                console.log('Keine Dateien gefunden.');
+            }
+        } while (pageToken); // Solange es eine nächste Seite gibt
+
+    } catch (error) {
+        console.error('Fehler beim Abrufen der Dateien:', error.message);
+    }
+    return false;
+}
+
 async function getUuidFromToken(token) {
     // Suche die Datei auf Google Drive
     const response = await drive.files.list({
@@ -179,8 +292,9 @@ async function getUuidFromToken(token) {
     }
 }
 
-function getPublicUser(user) {
+function getPublicUser(user, uuid) {
     user.password = undefined;
+    user.uuid = uuid;
 
     return user;
 }
@@ -190,6 +304,7 @@ function generateToken(length = 32) {
 }
 
 async function saveAuthToken(token, uuid) {
+    //save new token
     try {
         // Suche die Datei auf Google Drive
         const response = await drive.files.list({
@@ -203,6 +318,13 @@ async function saveAuthToken(token, uuid) {
         if (files.length) {
             const file = files[0];
             const data = await parseFile(file);
+
+            //delete old token
+            for (const key in data) {
+                if (data[key] === uuid) {
+                    delete data[key];
+                }
+            }
 
             data[token] = uuid;
             updateFile(file.id, JSON.stringify(data));
