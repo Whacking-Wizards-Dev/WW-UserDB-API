@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const path = require('path');
 const fs = require('fs');
 const dotenv = require('dotenv');
+const crypto = require('crypto');
 
 dotenv.config();
 
@@ -63,7 +64,7 @@ async function deleteFile(fileId) {
     }
 }
 
-async function searchFileInFolder(fileName) {
+async function getUserFromFile(fileName) {
     try {
         // Suche die Datei auf Google Drive
         const response = await drive.files.list({
@@ -78,20 +79,23 @@ async function searchFileInFolder(fileName) {
             const file = files[0];
             console.log(`Found file: ${file.name} (${file.id})`);
 
-            // Datei herunterladen
-            const fileResponse = await drive.files.get({
-                fileId: file.id,
-                alt: 'media'
-            }, { responseType: 'text' });
-
-            const user = JSON.parse(fileResponse.data);
-
-            return user;
+            return parseFile(file);
         }
     } catch (error) {
         console.error('Error searching or downloading file:', error);
         return false;
     }
+}
+
+async function parseFile(file) {
+    const fileResponse = await drive.files.get({
+        fileId: file.id,
+        alt: 'media'
+    }, { responseType: 'text' });
+
+    const user = JSON.parse(fileResponse.data);
+
+    return user;
 }
 
 
@@ -115,16 +119,64 @@ app.get('/auth/:uuid/:username/:password', async(req, res) => {
         return res.status(400).json({ error: 'UUID, username und password sind erforderlich.' });
     }
 
-    const user = await searchFileInFolder(uuid + ".json");
+    const user = await getUserFromFile(uuid + ".json");
 
     if (!user) {
-        return res.status(400).json({ error: 'UUID ist nicht gültig.', success: false });
+        return res.status(400).json({ error: 'UUID ist nicht gültig.' });
     }
 
     // Überprüfen, ob die Daten korrekt sind
     if (user.username !== username || user.password !== password) {
-        return res.status(400).json({ error: 'Username oder Passwort sind falsch.', success: false });
+        return res.status(400).json({ error: 'Username oder Passwort sind falsch.' });
     }
 
-    res.status(200).json({ message: 'Authentifizierung erfolgreich!', success: true });
+    const authToken = generateToken();
+
+    saveAuthToken(authToken, uuid);
+
+    res.status(200).json({ authToken: authToken });
 });
+
+function generateToken(length = 32) {
+    return crypto.randomBytes(length).toString('hex');
+}
+
+async function saveAuthToken(token, uuid) {
+    try {
+        // Suche die Datei auf Google Drive
+        const response = await drive.files.list({
+            q: `name='AuthTokens.json' and '1iBaR0z6LeNa6nV3tVy_FfZlNQkpYjWro' in parents and trashed=false`,
+            fields: 'files(id, name)',
+            pageSize: 1, // Limitierung auf nur 1 Ergebnis
+        });
+
+        const files = response.data.files;
+
+        if (files.length) {
+            const file = files[0];
+            const data = parseFile(file);
+
+            data[token] = uuid;
+            updateFile(file.id, JSON.stringify(data));
+        }
+    } catch (error) {
+        console.error('Error downloading file:', error);
+        return false;
+    }
+}
+
+async function updateFile(fileId, newContent) {
+    try {
+        const response = await drive.files.update({
+            fileId: fileId,
+            media: {
+                mimeType: 'text/plain', // Der MIME-Typ der Datei
+                body: newContent, // Der neue Inhalt der Datei
+            },
+            fields: 'id, name', // Felder, die zurückgegeben werden sollen
+            supportsAllDrives: true // Falls Sie auf geteilte Laufwerke zugreifen
+        });
+    } catch (error) {
+        console.error('Fehler beim Aktualisieren der Datei:', error);
+    }
+}
