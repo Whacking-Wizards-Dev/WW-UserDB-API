@@ -18,6 +18,11 @@ A simple Restful API to authenticate old users and registrate new ones
 ### DELETE
 - /user/{uuid}/{username}/{password}
 
+## Dependencies
+- googleapis
+- dotenv
+- crypto
+
 ## Technologies 👾
 - JavaScript
 - NodeJS
