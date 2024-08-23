@@ -134,8 +134,56 @@ app.get('/auth/:uuid/:username/:password', async(req, res) => {
 
     saveAuthToken(authToken, uuid);
 
-    res.status(200).json({ authToken: authToken });
+    const publicUser = getPublicUser(user);
+
+    res.status(200).json({ authToken: authToken, userData: publicUser });
 });
+
+app.get('/auth/:authToken', async(req, res) => {
+    // Entgegennehmen der Daten
+    const { authToken } = req.params;
+
+    // Überprüfen, ob alle erforderlichen Daten vorhanden sind
+    if (!authToken) {
+        return res.status(400).json({ error: 'authToken ist erforderlich.' });
+    }
+
+    const uuid = await getUuidFromToken(authToken);
+
+    const user = await getUserFromFile(uuid + ".json");
+
+    if (!user) {
+        return res.status(400).json({ error: 'UUID ist nicht gültig.' });
+    }
+
+    const publicUser = getPublicUser(user);
+
+    res.status(200).json({ userData: publicUser });
+});
+
+async function getUuidFromToken(token) {
+    // Suche die Datei auf Google Drive
+    const response = await drive.files.list({
+        q: `name='AuthTokens.json' and '1iBaR0z6LeNa6nV3tVy_FfZlNQkpYjWro' in parents and trashed=false`,
+        fields: 'files(id, name)',
+        pageSize: 1, // Limitierung auf nur 1 Ergebnis
+    });
+
+    const files = response.data.files;
+
+    if (files.length) {
+        const file = files[0];
+        const data = await parseFile(file);
+
+        return data[token];
+    }
+}
+
+function getPublicUser(user) {
+    user.password = undefined;
+
+    return user;
+}
 
 function generateToken(length = 32) {
     return crypto.randomBytes(length).toString('hex');
@@ -154,7 +202,7 @@ async function saveAuthToken(token, uuid) {
 
         if (files.length) {
             const file = files[0];
-            const data = parseFile(file);
+            const data = await parseFile(file);
 
             data[token] = uuid;
             updateFile(file.id, JSON.stringify(data));
