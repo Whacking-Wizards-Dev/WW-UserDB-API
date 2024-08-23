@@ -158,6 +158,26 @@ app.get('/auth/:authToken', async(req, res) => {
     res.status(200).json({ userData: publicUser });
 });
 
+app.get('/user/:uuid', async(req, res) => {
+    // Entgegennehmen der Daten
+    const { uuid } = req.params;
+
+    // Überprüfen, ob alle erforderlichen Daten vorhanden sind
+    if (!uuid) {
+        return res.status(400).json({ error: 'UUID ist erforderlich.' });
+    }
+
+    const user = await getUserFromFile(uuid + ".json");
+
+    if (!user) {
+        return res.status(400).json({ error: 'UUID ist nicht gültig.' });
+    }
+
+    const publicUser = getPublicUser(user);
+
+    res.status(200).json({ userData: publicUser });
+});
+
 app.post('/user/:email/:username/:password', async(req, res) => {
     // Entgegennehmen der Daten
     const { email, username, password } = req.params;
