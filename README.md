@@ -8,6 +8,7 @@ A simple Restful API to authenticate old users and registrate new ones
 
 ## Endpoints 🏁
 ### GET
+- /user/{uuid}
 - /auth/{uuid}/{username}/{password}
 - /auth/{authToken}
 
