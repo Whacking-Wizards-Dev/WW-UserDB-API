@@ -131,28 +131,28 @@ app.get('/user/verify/:email/:verificationToken', async(req, res) => {
 
     // Überprüfen, ob alle erforderlichen Daten vorhanden sind
     if (!email || !verificationToken) {
-        return res.status(400).json({ error: 'email & verificationToken sind erforderlich.' });
+        return res.redirect('https://whacking-wizards.netlify.app/verificationError');
     }
 
     const data = await verifyUser(email);
 
     if (!data) {
-        return res.status(400).json({ error: 'Email ist nicht gültig.' });
+        return res.redirect('https://whacking-wizards.netlify.app/verificationError');
     }
 
     if (data.token !== verificationToken) {
-        return res.status(400).json({ error: 'VerificationToken ist nicht gültig.' });
+        return res.redirect('https://whacking-wizards.netlify.app/verificationError');
     }
 
     if (data.timeStamp < Date.now() - 1000 * 60 * 60 * 24) {
-        return res.status(400).json({ error: 'VerificationToken ist abgelaufen.' });
+        return res.redirect('https://whacking-wizards.netlify.app/verificationError');
     }
 
-    createUser(email, data.username, data.password)
+    createUser(email, data.username, data.password);
 
     deleteVerificationToken(email);
 
-    res.status(200).json({ message: 'User wurde erfolgreich erstellt & verifiziert.' });
+    res.redirect('https://whacking-wizards.netlify.app/verified');
 });
 
 async function verifyUser(email) {
@@ -391,8 +391,9 @@ async function nextUuid() {
 async function emailAlreadyExists(email) {
     try {
         let pageToken = null;
+
         do {
-            // Listen Sie die Dateien auf
+            // Liste die Dateien auf
             const response = await drive.files.list({
                 q: `'${ROOT_FOLDER}' in parents and trashed=false`,
                 pageSize: 1000, // Maximale Anzahl von Dateien pro Seite
@@ -404,12 +405,12 @@ async function emailAlreadyExists(email) {
             pageToken = response.data.nextPageToken;
 
             if (files.length) {
-                files.forEach(async(file) => {
+                for (const file of files) {
                     const data = await parseFile(file);
                     if (data.email === email) {
-                        return true;
+                        return true; // Frühzeitiger Abbruch, wenn die E-Mail gefunden wird
                     }
-                });
+                }
             } else {
                 console.log('Keine Dateien gefunden.');
             }
@@ -418,7 +419,7 @@ async function emailAlreadyExists(email) {
     } catch (error) {
         console.error('Fehler beim Abrufen der Dateien:', error.message);
     }
-    return false;
+    return false; // E-Mail nicht gefunden
 }
 
 async function getUuidFromToken(token) {
