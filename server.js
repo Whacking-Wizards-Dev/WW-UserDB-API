@@ -73,9 +73,11 @@ app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
 });
 
-app.get('/auth/:uuid/:username/:password', async(req, res) => {
+app.post('/auth', async(req, res) => {
     // Entgegennehmen der Daten
-    const { uuid, username, password } = req.params;
+    const uuid = req.body.uuid;
+    const username = req.body.username;
+    const password = req.body.password;
 
     // Überprüfen, ob alle erforderlichen Daten vorhanden sind
     if (!uuid || !username || !password) {
@@ -103,9 +105,9 @@ app.get('/auth/:uuid/:username/:password', async(req, res) => {
 });
 
 
-app.get('/auth/:authToken', async(req, res) => {
+app.post('/auth/token', async(req, res) => {
     // Entgegennehmen der Daten
-    const { authToken } = req.params;
+    const authToken = req.body.authToken;
 
     // Überprüfen, ob alle erforderlichen Daten vorhanden sind
     if (!authToken) {
@@ -148,12 +150,20 @@ app.get('/user/verify/:email/:verificationToken', async(req, res) => {
         return res.redirect('https://whacking-wizards.netlify.app/verificationError');
     }
 
-    createUser(email, data.username, data.password);
+    if (emailAlreadyExists(email)) {
+        updateUser(email, data);
+    } {
+        createUser(email, data.username, data.password);
+    }
 
     deleteVerificationToken(email);
 
     res.redirect('https://whacking-wizards.netlify.app/verified');
 });
+
+function updateUser(email, data) {
+
+}
 
 async function verifyUser(email) {
     // Suche die Datei auf Google Drive
@@ -192,9 +202,11 @@ async function deleteVerificationToken(email) {
     }
 }
 
-app.delete('/user/:uuid/:username/:password', async(req, res) => {
+app.delete('/user', async(req, res) => {
     // Entgegennehmen der Daten
-    const { uuid, username, password } = req.params;
+    const uuid = req.body.uuid;
+    const username = req.body.username;
+    const password = req.body.password;
 
     // Überprüfen, ob alle erforderlichen Daten vorhanden sind
     if (!uuid || !username || !password) {
@@ -301,9 +313,13 @@ app.get('/user/:uuid', async(req, res) => {
     res.status(200).json({ userData: publicUser });
 });
 
-app.post('/user/:email/:username/:password', async(req, res) => {
+app.post('/user', async(req, res) => {
     // Entgegennehmen der Daten
-    const { email, username, password } = req.params;
+    const email = req.body.email;
+    const username = req.body.username;
+    const password = req.body.password;
+
+    console.log("email: " + email + " username: " + username + " password: " + password);
 
     // Überprüfen, ob alle erforderlichen Daten vorhanden sind
     if (!email || !username || !password) {
