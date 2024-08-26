@@ -10,11 +10,11 @@ A simple Restful API to authenticate old users and registrate new ones
 ## Endpoints 🏁
 ### GET
 - /user/{uuid}
-- /auth/{uuid}/{username}/{password}
-- /auth/{authToken}
 
 ### POST
 - /user/{email}/{username}/{password}
+- /auth/{uuid}/{username}/{password}
+- /auth/{authToken}
 
 ### DELETE
 - /user/{uuid}/{username}/{password}
