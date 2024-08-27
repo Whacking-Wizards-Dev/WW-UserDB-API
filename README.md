@@ -12,12 +12,12 @@ A simple Restful API to authenticate old users and registrate new ones
 - /user/{uuid}
 
 ### POST
-- /user/{email}/{username}/{password}
-- /auth/{uuid}/{username}/{password}
-- /auth/{authToken}
+- /user
+- /auth
+- /auth/token
 
 ### DELETE
-- /user/{uuid}/{username}/{password}
+- /user
 
 ## Dependencies
 - googleapis
