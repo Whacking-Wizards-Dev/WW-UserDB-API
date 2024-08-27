@@ -104,6 +104,48 @@ app.post('/auth', async(req, res) => {
     res.status(200).json({ authToken: authToken, userData: publicUser });
 });
 
+app.patch('/user', async(req, res) => {
+    // Entgegennehmen der Daten
+    const uuid = req.body.uuid;
+    const username = req.body.username;
+    const password = req.body.password;
+
+    // Überprüfen, ob alle erforderlichen Daten vorhanden sind
+    if (!uuid || !username || !password) {
+        return res.status(400).json({ error: 'UUID, username und password sind erforderlich.' });
+    }
+
+    const user = await getUserFromFile(uuid + ".json");
+
+    if (!user) {
+        return res.status(400).json({ error: 'UUID ist nicht gültig.' });
+    }
+
+    // Überprüfen, ob die Daten korrekt sind
+    if (user.username !== username || user.password !== password) {
+        return res.status(400).json({ error: 'Username oder Passwort sind falsch.' });
+    }
+
+    for (let key in req.body) {
+        if (key === 'uuid' || key === 'username' || key === 'password' || key === 'email') continue;
+        switch (key) {
+            case 'newUsername':
+                user["username"] = req.body[key];
+                continue;
+            case 'newPassword':
+                user["password"] = req.body[key];
+                continue;
+        }
+
+        user[key] = req.body[key];
+    }
+
+    updateFile(await getFileId(uuid), JSON.stringify(user));
+
+    const publicUser = getPublicUser(user);
+
+    res.status(200).json({ userData: publicUser });
+});
 
 app.post('/auth/token', async(req, res) => {
     // Entgegennehmen der Daten
@@ -147,23 +189,16 @@ app.get('/user/verify/:email/:verificationToken', async(req, res) => {
     }
 
     if (data.timeStamp < Date.now() - 1000 * 60 * 60 * 24) {
+        await deleteVerificationToken(email);
         return res.redirect('https://whacking-wizards.netlify.app/verificationError');
     }
 
-    if (emailAlreadyExists(email)) {
-        updateUser(email, data);
-    } {
-        createUser(email, data.username, data.password);
-    }
+    createUser(email, data.username, data.password);
 
     deleteVerificationToken(email);
 
     res.redirect('https://whacking-wizards.netlify.app/verified');
 });
-
-function updateUser(email, data) {
-
-}
 
 async function verifyUser(email) {
     // Suche die Datei auf Google Drive
@@ -226,6 +261,12 @@ app.delete('/user', async(req, res) => {
 
     deleteFile(await getFileId(uuid));
 
+    deleteAuthToken(uuid);
+
+    res.status(200).json({});
+});
+
+async function deleteAuthToken(uuid) {
     //delete token
     try {
         // Suche die Datei auf Google Drive
@@ -254,9 +295,7 @@ app.delete('/user', async(req, res) => {
         console.error('Error downloading file:', error);
         return false;
     }
-
-    res.status(200).json({});
-});
+}
 
 async function getFileId(uuid) {
     const fileName = uuid + ".json";
@@ -452,7 +491,12 @@ async function getUuidFromToken(token) {
         const file = files[0];
         const data = await parseFile(file);
 
-        return data[token];
+        //delete old token
+        if (data[token].timeStamp < Date.now() - 1000 * 60 * 60 * 24 * 21) { //nach 3 Wochen
+            deleteAuthToken(data[token].uuid);
+        }
+
+        return data[token].uuid;
     }
 }
 
@@ -490,7 +534,7 @@ async function saveAuthToken(token, uuid) {
                 }
             }
 
-            data[token] = uuid;
+            data[token] = { "uuid": uuid, "timeStamp": Date.now() };
             updateFile(file.id, JSON.stringify(data));
         }
     } catch (error) {
