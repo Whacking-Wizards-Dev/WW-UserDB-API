@@ -22,7 +22,7 @@ A simple Restful API to authenticate old users and registrate new ones
 ### DELETE
 - /user
 
-## Dependencies
+## Dependencies ⚓
 - googleapis
 - dotenv
 - crypto
